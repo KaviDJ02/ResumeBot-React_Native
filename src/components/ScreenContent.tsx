@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { EditScreenInfo } from '../src/components/EditScreenInfo';
+import { EditScreenInfo } from '../../src/components/EditScreenInfo';
 
 type ScreenName = 'Welcome' | 'Home' | 'Resume' | 'Profile' | 'SignIn' | 'SignUp';
 
