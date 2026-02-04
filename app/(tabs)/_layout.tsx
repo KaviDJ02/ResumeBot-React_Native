@@ -18,6 +18,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="resume"
         options={{
@@ -27,15 +28,14 @@ export default function TabsLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="cv-data"
         options={{
-          title: 'CV Data',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="create-outline" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
+
       <Tabs.Screen
         name="profile"
         options={{
