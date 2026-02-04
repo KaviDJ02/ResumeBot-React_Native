@@ -8,25 +8,28 @@ export default function SignUpRoute() {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'left', 'right']}>
-      <View className="px-5 pt-2 pb-4">
+      <View className="px-5 pb-4 pt-2">
         <Text className="text-2xl font-semibold">Sign Up</Text>
       </View>
 
       <View className="flex-1 items-center">
         <View className="w-11/12">
-        <Text className="text-base font-medium mb-2">Name</Text>
-        <TextInput className="border p-2 rounded mb-4" placeholder="Your name" />
-        <Text className="text-base font-medium mb-2">Email</Text>
-        <TextInput className="border p-2 rounded mb-4" placeholder="you@example.com" />
-        <Text className="text-base font-medium mb-2">Password</Text>
-        <TextInput className="border p-2 rounded mb-4" placeholder="••••••••" secureTextEntry />
-        <Button title="Create account" onPress={() => router.replace('/(tabs)/home')} />
-        <View className="mt-3">
-          <Button title="Have an account? Sign In" onPress={() => router.push('/(auth)/signin')} />
-        </View>
-        <View className="mt-3">
-          <Button title="Back" onPress={() => router.replace('/(auth)/welcome')} />
-        </View>
+          <Text className="mb-2 text-base font-medium">Name</Text>
+          <TextInput className="mb-4 rounded border p-2" placeholder="Your name" />
+          <Text className="mb-2 text-base font-medium">Email</Text>
+          <TextInput className="mb-4 rounded border p-2" placeholder="you@example.com" />
+          <Text className="mb-2 text-base font-medium">Password</Text>
+          <TextInput className="mb-4 rounded border p-2" placeholder="••••••••" secureTextEntry />
+          <Button title="Create account" onPress={() => router.replace('/(tabs)/home')} />
+          <View className="mt-3">
+            <Button
+              title="Have an account? Sign In"
+              onPress={() => router.push('/(auth)/signin')}
+            />
+          </View>
+          <View className="mt-3">
+            <Button title="Back" onPress={() => router.replace('/(auth)/welcome')} />
+          </View>
         </View>
       </View>
     </SafeAreaView>

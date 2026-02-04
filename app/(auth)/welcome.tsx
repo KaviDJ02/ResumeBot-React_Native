@@ -8,22 +8,22 @@ export default function WelcomeRoute() {
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'left', 'right']}>
-      <View className="px-5 pt-2 pb-4">
+      <View className="px-5 pb-4 pt-2">
         <Text className="text-2xl font-semibold">Welcome</Text>
       </View>
 
       <View className="flex-1 items-center">
         <View className="w-11/12 items-center">
-        <Text className="text-lg font-semibold mb-4">Welcome to ResumeBot</Text>
-        <View className="w-full mb-3">
-          <Button title="Sign In" onPress={() => router.push('/(auth)/signin')} />
-        </View>
-        <View className="w-full mb-3">
-          <Button title="Sign Up" onPress={() => router.push('/(auth)/signup')} />
-        </View>
-        <View className="w-full">
-          <Button title="Continue as Guest" onPress={() => router.replace('/(tabs)/home')} />
-        </View>
+          <Text className="mb-4 text-lg font-semibold">Welcome to ResumeBot</Text>
+          <View className="mb-3 w-full">
+            <Button title="Sign In" onPress={() => router.push('/(auth)/signin')} />
+          </View>
+          <View className="mb-3 w-full">
+            <Button title="Sign Up" onPress={() => router.push('/(auth)/signup')} />
+          </View>
+          <View className="w-full">
+            <Button title="Continue as Guest" onPress={() => router.replace('/(tabs)/home')} />
+          </View>
         </View>
       </View>
     </SafeAreaView>
