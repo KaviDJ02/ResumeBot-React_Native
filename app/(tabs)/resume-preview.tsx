@@ -78,7 +78,7 @@ export default function ResumePreviewScreen() {
       <View className="px-5 pb-3 pt-2">
         <Text className="text-2xl font-semibold">CV Template</Text>
         <Text className="mt-1 text-sm text-gray-600">
-          {template === 'ats' ? 'ATS Simple' : template} • {cv?.updatedAt ? `Updated ${new Date(cv.updatedAt).toLocaleString()}` : 'Not saved yet'}
+          {template === 'ats' ? 'ATS Simple' : template}
         </Text>
       </View>
 

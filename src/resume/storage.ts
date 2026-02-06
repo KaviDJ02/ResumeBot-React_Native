@@ -38,6 +38,7 @@ export function normalizeCvData(data: unknown): CvData {
       linkedIn: asString(personalRaw.linkedIn),
       github: asString(personalRaw.github),
     },
+    professionalSummary: asString(obj.professionalSummary).trim() || undefined,
     targetRole: asString(obj.targetRole),
     experiences: experiencesRaw
       .map((x) => (x && typeof x === 'object' ? (x as Record<string, unknown>) : null))

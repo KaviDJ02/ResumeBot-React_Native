@@ -30,6 +30,7 @@ export type CvData = {
     linkedIn: string;
     github: string;
   };
+  professionalSummary?: string;
   targetRole: string;
   experiences: Experience[];
   education: Education[];
@@ -47,15 +48,9 @@ function escapeHtml(input: string) {
     .replaceAll("'", '&#39;');
 }
 
-function formatUpdatedAt(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString();
-}
-
 export function renderAtsHtml(cv: CvData) {
   const name = escapeHtml(cv.personal.fullName || '');
+  const summary = escapeHtml(cv.professionalSummary?.trim() || '');
   const targetRole = escapeHtml(cv.targetRole || '');
 
   const contactParts = [
@@ -69,7 +64,6 @@ export function renderAtsHtml(cv: CvData) {
     .filter(Boolean) as string[];
 
   const contactLine = escapeHtml(contactParts.join(' • '));
-  const updatedAtLine = formatUpdatedAt(cv.updatedAt);
 
   const skillsLine = escapeHtml((cv.skills ?? []).join(', '));
 
@@ -141,7 +135,6 @@ export function renderAtsHtml(cv: CvData) {
         }
         .name { font-size: 22px; font-weight: 700; margin: 0; }
         .contact { margin: 6px 0 0 0; color: #333; }
-        .meta { margin: 6px 0 0 0; color: #555; font-size: 11px; }
         .role { margin: 10px 0 0 0; font-weight: 600; }
         .section { margin-top: 14px; }
         .section-title {
@@ -165,8 +158,14 @@ export function renderAtsHtml(cv: CvData) {
     <body>
       <h1 class="name">${name}</h1>
       ${contactLine ? `<p class="contact">${contactLine}</p>` : ''}
-      ${updatedAtLine ? `<p class="meta">Last updated: ${escapeHtml(updatedAtLine)}</p>` : ''}
-      ${targetRole ? `<p class="role">Target Role: ${targetRole}</p>` : ''}
+      ${targetRole ? `<p class="role">${targetRole}</p>` : ''}
+
+      ${summary ? `
+        <div class="section">
+          <h2 class="section-title">Professional Summary</h2>
+          <div class="body">${summary}</div>
+        </div>
+      ` : ''}
 
       ${skillsLine ? `
         <div class="section">
