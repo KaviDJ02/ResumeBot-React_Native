@@ -305,7 +305,8 @@ export default function CvDataScreen() {
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      AsyncStorage.setItem(activeStorageKey, JSON.stringify(cvData)).catch(() => {
+      const payload = { ...cvData, updatedAt: new Date().toISOString() };
+      AsyncStorage.setItem(activeStorageKey, JSON.stringify(payload)).catch(() => {
         // Ignore background autosave errors.
       });
     }, 600);
@@ -320,8 +321,9 @@ export default function CvDataScreen() {
 
     setSavingLocal(true);
     try {
+      const payload = { ...cvData, updatedAt: new Date().toISOString() };
       await withTimeout(
-        AsyncStorage.setItem(activeStorageKey, JSON.stringify(cvData)),
+        AsyncStorage.setItem(activeStorageKey, JSON.stringify(payload)),
         4000,
         'Timed out while saving locally.'
       );
