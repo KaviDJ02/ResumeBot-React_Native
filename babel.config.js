@@ -5,21 +5,13 @@ module.exports = function (api) {
     presets: [
       ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
     ],
-    plugins: [
-      'nativewind/babel',
-      'expo-router/babel',
-      'react-native-worklets/plugin',
-    ],
+    plugins: ['expo-router/babel'],
+
   };
 };
 
 
-// module.exports = function (api) {
-//   api.cache(true);
+// 'react-native-worklets/plugin',
 
-//   return {
-//     presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }], 'nativewind/babel'],
-//     plugins: ['react-native-worklets/plugin'],
-//   };
-// };
-
+// 'expo-router/babel',
+//       'react-native-reanimated/plugin',
