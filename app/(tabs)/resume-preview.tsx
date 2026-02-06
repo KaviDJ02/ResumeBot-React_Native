@@ -8,7 +8,13 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
 import { auth } from '@/firebase';
-import { renderAtsHtml, type CvData } from '@/resume/atsTemplate';
+import {
+  renderAtsCompactHtml,
+  renderAtsHtml,
+  renderExecutiveSerifHtml,
+  renderModernColoredHtml,
+  type CvData,
+} from '@/resume/atsTemplate';
 import { loadLocalCvData } from '@/resume/storage';
 
 function PrimaryButton({ title, onPress }: { title: string; onPress: () => void }) {
@@ -49,8 +55,19 @@ export default function ResumePreviewScreen() {
   const html = useMemo(() => {
     if (!cv) return '<html><body>Loading…</body></html>';
     if (template === 'ats') return renderAtsHtml(cv);
+    if (template === 'ats-compact') return renderAtsCompactHtml(cv);
+    if (template === 'modern-colored') return renderModernColoredHtml(cv);
+    if (template === 'executive-serif') return renderExecutiveSerifHtml(cv);
     return renderAtsHtml(cv);
   }, [cv, template]);
+
+  const templateLabel = useMemo(() => {
+    if (template === 'ats') return 'ATS Simple';
+    if (template === 'ats-compact') return 'ATS Compact';
+    if (template === 'modern-colored') return 'Modern Colored';
+    if (template === 'executive-serif') return 'Executive Serif';
+    return template;
+  }, [template]);
 
   async function onDownloadPdf() {
     if (downloading) return;
@@ -78,7 +95,7 @@ export default function ResumePreviewScreen() {
       <View className="px-5 pb-3 pt-2">
         <Text className="text-2xl font-semibold">CV Template</Text>
         <Text className="mt-1 text-sm text-gray-600">
-          {template === 'ats' ? 'ATS Simple' : template}
+          {templateLabel}
         </Text>
       </View>
 
