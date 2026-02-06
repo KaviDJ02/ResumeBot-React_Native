@@ -1,6 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+
+import { auth, db } from '@/firebase';
 
 type Experience = {
   id: string;
@@ -24,6 +29,91 @@ type Project = {
   description: string;
   techStack: string;
 };
+
+type CvData = {
+  personal: {
+    fullName: string;
+    email: string;
+    phone: string;
+    location: string;
+    linkedIn: string;
+    github: string;
+  };
+  targetRole: string;
+  experiences: Experience[];
+  education: Education[];
+  skills: string[];
+  projects: Project[];
+};
+
+function asString(value: unknown) {
+  return typeof value === 'string' ? value : '';
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : [];
+}
+
+function normalizeCvData(data: unknown): CvData {
+  const obj = (data && typeof data === 'object' ? (data as Record<string, unknown>) : {}) as Record<
+    string,
+    unknown
+  >;
+
+  const personalRaw =
+    obj.personal && typeof obj.personal === 'object'
+      ? (obj.personal as Record<string, unknown>)
+      : {};
+
+  const experiencesRaw = Array.isArray(obj.experiences) ? obj.experiences : [];
+  const educationRaw = Array.isArray(obj.education) ? obj.education : [];
+  const projectsRaw = Array.isArray(obj.projects) ? obj.projects : [];
+
+  return {
+    personal: {
+      fullName: asString(personalRaw.fullName),
+      email: asString(personalRaw.email),
+      phone: asString(personalRaw.phone),
+      location: asString(personalRaw.location),
+      linkedIn: asString(personalRaw.linkedIn),
+      github: asString(personalRaw.github),
+    },
+    targetRole: asString(obj.targetRole),
+    experiences: experiencesRaw
+      .map((x) => (x && typeof x === 'object' ? (x as Record<string, unknown>) : null))
+      .filter(Boolean)
+      .map((x) => ({
+        id: asString(x!.id),
+        companyName: asString(x!.companyName),
+        jobTitle: asString(x!.jobTitle),
+        startDate: asString(x!.startDate),
+        endDate: asString(x!.endDate),
+        description: asString(x!.description),
+      }))
+      .filter((e) => !!e.id),
+    education: educationRaw
+      .map((x) => (x && typeof x === 'object' ? (x as Record<string, unknown>) : null))
+      .filter(Boolean)
+      .map((x) => ({
+        id: asString(x!.id),
+        institution: asString(x!.institution),
+        degree: asString(x!.degree),
+        year: asString(x!.year),
+      }))
+      .filter((e) => !!e.id),
+    skills: asStringArray(obj.skills),
+    projects: projectsRaw
+      .map((x) => (x && typeof x === 'object' ? (x as Record<string, unknown>) : null))
+      .filter(Boolean)
+      .map((x) => ({
+        id: asString(x!.id),
+        projectName: asString(x!.projectName),
+        description: asString(x!.description),
+        techStack: asString(x!.techStack),
+      }))
+      .filter((p) => !!p.id),
+  };
+}
 
 function uid(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -138,6 +228,85 @@ export default function CvDataScreen() {
     return newProject.projectName.trim();
   }, [newProject.projectName]);
 
+  const [loadingCloud, setLoadingCloud] = useState(true);
+  const [savingCloud, setSavingCloud] = useState(false);
+
+  const cvData: CvData = useMemo(
+    () => ({
+      personal,
+      targetRole,
+      experiences,
+      education,
+      skills,
+      projects,
+    }),
+    [education, experiences, personal, projects, skills, targetRole]
+  );
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setLoadingCloud(false);
+        return;
+      }
+
+      setLoadingCloud(true);
+      try {
+        const ref = doc(db, 'users', user.uid, 'cv', 'main');
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+          const normalized = normalizeCvData(snap.data());
+          setPersonal(normalized.personal);
+          setTargetRole(normalized.targetRole);
+          setExperiences(normalized.experiences);
+          setEducation(normalized.education);
+          setSkills(normalized.skills);
+          setProjects(normalized.projects);
+        }
+      } catch (e) {
+        Alert.alert(
+          'Could not load CV',
+          e instanceof Error ? e.message : 'Unknown error while loading data from the cloud.'
+        );
+      } finally {
+        setLoadingCloud(false);
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  async function saveCvToCloud() {
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert('Not signed in', 'Please sign in to save your CV to the cloud.');
+      return;
+    }
+    if (savingCloud) return;
+
+    setSavingCloud(true);
+    try {
+      const ref = doc(db, 'users', user.uid, 'cv', 'main');
+      await setDoc(
+        ref,
+        {
+          ...cvData,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      Alert.alert('Saved', 'Your CV has been saved to Firebase.');
+    } catch (e) {
+      Alert.alert(
+        'Save failed',
+        e instanceof Error ? e.message : 'Unknown error while saving data to the cloud.'
+      );
+    } finally {
+      setSavingCloud(false);
+    }
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'left', 'right']}>
       <View className="px-5 pb-4 pt-2">
@@ -145,6 +314,32 @@ export default function CvDataScreen() {
       </View>
 
       <ScrollView className="flex-1" contentContainerClassName="px-5 pb-10">
+        <View className="mb-2">
+          <PrimaryButton
+            title={
+              loadingCloud
+                ? 'Loading…'
+                : savingCloud
+                  ? 'Saving…'
+                  : auth.currentUser
+                    ? 'Save CV'
+                    : 'Save CV (sign in required)'
+            }
+            onPress={saveCvToCloud}
+          />
+          {loadingCloud ? (
+            <Text className="mt-2 text-sm text-gray-600">Loading your saved CV from the cloud…</Text>
+          ) : !auth.currentUser ? (
+            <Text className="mt-2 text-sm text-gray-600">
+              You’re not signed in, so CV data stays on this screen only.
+            </Text>
+          ) : (
+            <Text className="mt-2 text-sm text-gray-600">
+              Saved CV is linked to your Firebase account.
+            </Text>
+          )}
+        </View>
+
         <SectionTitle>1️⃣ Personal Info</SectionTitle>
 
         <FieldLabel>Full Name</FieldLabel>
