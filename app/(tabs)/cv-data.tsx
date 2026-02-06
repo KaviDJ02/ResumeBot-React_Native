@@ -6,6 +6,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { auth } from '@/firebase';
+import { generateProfessionalSummaryOpenRouter } from '@/ai/openrouter';
 
 type Experience = {
   id: string;
@@ -39,6 +40,7 @@ type CvData = {
     linkedIn: string;
     github: string;
   };
+  professionalSummary?: string;
   targetRole: string;
   experiences: Experience[];
   education: Education[];
@@ -78,6 +80,8 @@ function normalizeCvData(data: unknown): CvData {
       linkedIn: asString(personalRaw.linkedIn),
       github: asString(personalRaw.github),
     },
+    professionalSummary:
+      typeof obj.professionalSummary === 'string' ? (obj.professionalSummary as string) : undefined,
     targetRole: asString(obj.targetRole),
     experiences: experiencesRaw
       .map((x) => (x && typeof x === 'object' ? (x as Record<string, unknown>) : null))
@@ -188,6 +192,9 @@ export default function CvDataScreen() {
 
   const [targetRole, setTargetRole] = useState('');
 
+  const [professionalSummary, setProfessionalSummary] = useState('');
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [newExp, setNewExp] = useState<Omit<Experience, 'id'>>({
     companyName: '',
@@ -255,14 +262,29 @@ export default function CvDataScreen() {
   const cvData: CvData = useMemo(
     () => ({
       personal,
+      professionalSummary,
       targetRole,
       experiences,
       education,
       skills,
       projects,
     }),
-    [education, experiences, personal, projects, skills, targetRole]
+    [education, experiences, personal, professionalSummary, projects, skills, targetRole]
   );
+
+  const canGenerateSummary = useMemo(() => {
+    const hasRequiredPersonal =
+      personal.fullName.trim() &&
+      personal.email.trim() &&
+      personal.phone.trim() &&
+      personal.location.trim();
+
+    const hasRole = targetRole.trim();
+    const hasSomeContent =
+      experiences.length > 0 || education.length > 0 || skills.length > 0 || projects.length > 0;
+
+    return Boolean(hasRequiredPersonal && hasRole && hasSomeContent);
+  }, [education.length, experiences.length, personal, projects.length, skills.length, targetRole]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -282,6 +304,7 @@ export default function CvDataScreen() {
           const parsed = JSON.parse(raw) as unknown;
           const normalized = normalizeCvData(parsed);
           setPersonal(normalized.personal);
+          setProfessionalSummary(normalized.professionalSummary ?? '');
           setTargetRole(normalized.targetRole);
           setExperiences(normalized.experiences);
           setEducation(normalized.education);
@@ -335,6 +358,50 @@ export default function CvDataScreen() {
       );
     } finally {
       setSavingLocal(false);
+    }
+  }
+
+  async function onGenerateSummaryWithAi() {
+    if (!canGenerateSummary) {
+      Alert.alert(
+        'Missing required info',
+        'Fill Full Name, Email, Phone, Location, Target Role, and add at least one Experience/Education/Skill/Project before generating.'
+      );
+      return;
+    }
+    if (generatingSummary) return;
+
+    setGeneratingSummary(true);
+    try {
+      const summary = await withTimeout(
+        generateProfessionalSummaryOpenRouter({
+          personal,
+          targetRole,
+          experiences,
+          education,
+          skills,
+          projects,
+        }),
+        20000,
+        'AI request timed out. Please try again.'
+      );
+
+      setProfessionalSummary(summary);
+
+      // Persist immediately so Resume tab can pick it up.
+      const payload = {
+        ...cvData,
+        professionalSummary: summary,
+        updatedAt: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem(activeStorageKey, JSON.stringify(payload));
+    } catch (e) {
+      Alert.alert(
+        'AI generation failed',
+        e instanceof Error ? e.message : 'Unknown error while generating summary.'
+      );
+    } finally {
+      setGeneratingSummary(false);
     }
   }
 
@@ -416,6 +483,43 @@ export default function CvDataScreen() {
           onChangeText={setTargetRole}
           placeholder='e.g., "Software Engineer"'
         />
+
+        <SectionTitle>✨ Professional Summary</SectionTitle>
+        <Text className="mb-2 text-sm text-gray-600">
+          Write your summary or generate it with AI.
+        </Text>
+        <Input
+          value={professionalSummary}
+          onChangeText={setProfessionalSummary}
+          placeholder="Professional summary (ATS-friendly)…"
+          multiline
+          textAlignVertical="top"
+        />
+
+        <View className="mt-3">
+          <Pressable
+            onPress={() => {
+              if (!canGenerateSummary || generatingSummary) return;
+              void onGenerateSummaryWithAi();
+            }}
+            className={[
+              'rounded px-4 py-3 active:opacity-80',
+              !canGenerateSummary || generatingSummary ? 'bg-gray-300' : 'bg-black',
+            ].join(' ')}>
+            <Text
+              className={[
+                'text-center font-semibold',
+                !canGenerateSummary || generatingSummary ? 'text-gray-700' : 'text-white',
+              ].join(' ')}>
+              {generatingSummary ? 'Generating…' : 'Generate with AI'}
+            </Text>
+          </Pressable>
+          {!canGenerateSummary ? (
+            <Text className="mt-2 text-xs text-gray-600">
+              Required: Full Name, Email, Phone, Location, Target Role, and at least one section item.
+            </Text>
+          ) : null}
+        </View>
 
         <SectionTitle>3️⃣ Work Experience</SectionTitle>
 
