@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { auth, db } from '@/firebase';
+import { auth } from '@/firebase';
 
 type Experience = {
   id: string;
@@ -113,6 +113,24 @@ function normalizeCvData(data: unknown): CvData {
       }))
       .filter((p) => !!p.id),
   };
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function storageKeyForUid(uid: string | null | undefined) {
+  return `cvData:v1:${uid ?? 'guest'}`;
 }
 
 function uid(prefix: string) {
@@ -228,8 +246,11 @@ export default function CvDataScreen() {
     return newProject.projectName.trim();
   }, [newProject.projectName]);
 
-  const [loadingCloud, setLoadingCloud] = useState(true);
-  const [savingCloud, setSavingCloud] = useState(false);
+  const [loadingLocal, setLoadingLocal] = useState(true);
+  const [savingLocal, setSavingLocal] = useState(false);
+  const [activeStorageKey, setActiveStorageKey] = useState(storageKeyForUid(auth.currentUser?.uid));
+  const hasHydratedRef = useRef(false);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cvData: CvData = useMemo(
     () => ({
@@ -245,18 +266,21 @@ export default function CvDataScreen() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setLoadingCloud(false);
-        return;
-      }
-
-      setLoadingCloud(true);
       try {
-        const ref = doc(db, 'users', user.uid, 'cv', 'main');
-        const snap = await getDoc(ref);
+        const key = storageKeyForUid(user?.uid);
+        setActiveStorageKey(key);
+        setLoadingLocal(true);
+        hasHydratedRef.current = false;
 
-        if (snap.exists()) {
-          const normalized = normalizeCvData(snap.data());
+        const raw = await withTimeout(
+          AsyncStorage.getItem(key),
+          4000,
+          'Timed out while reading local storage.'
+        );
+
+        if (raw) {
+          const parsed = JSON.parse(raw) as unknown;
+          const normalized = normalizeCvData(parsed);
           setPersonal(normalized.personal);
           setTargetRole(normalized.targetRole);
           setExperiences(normalized.experiences);
@@ -265,45 +289,50 @@ export default function CvDataScreen() {
           setProjects(normalized.projects);
         }
       } catch (e) {
-        Alert.alert(
-          'Could not load CV',
-          e instanceof Error ? e.message : 'Unknown error while loading data from the cloud.'
-        );
+        Alert.alert('Could not load CV', e instanceof Error ? e.message : 'Unknown error.');
       } finally {
-        setLoadingCloud(false);
+        setLoadingLocal(false);
+        hasHydratedRef.current = true;
       }
     });
 
     return () => unsub();
   }, []);
 
-  async function saveCvToCloud() {
-    const user = auth.currentUser;
-    if (!user) {
-      Alert.alert('Not signed in', 'Please sign in to save your CV to the cloud.');
-      return;
-    }
-    if (savingCloud) return;
+  useEffect(() => {
+    // Debounced auto-save to local storage after edits.
+    if (!hasHydratedRef.current) return;
 
-    setSavingCloud(true);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      AsyncStorage.setItem(activeStorageKey, JSON.stringify(cvData)).catch(() => {
+        // Ignore background autosave errors.
+      });
+    }, 600);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [activeStorageKey, cvData]);
+
+  async function saveCvToDevice() {
+    if (savingLocal) return;
+
+    setSavingLocal(true);
     try {
-      const ref = doc(db, 'users', user.uid, 'cv', 'main');
-      await setDoc(
-        ref,
-        {
-          ...cvData,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
+      await withTimeout(
+        AsyncStorage.setItem(activeStorageKey, JSON.stringify(cvData)),
+        4000,
+        'Timed out while saving locally.'
       );
-      Alert.alert('Saved', 'Your CV has been saved to Firebase.');
+      Alert.alert('Saved', 'Your CV has been saved on this device.');
     } catch (e) {
       Alert.alert(
         'Save failed',
-        e instanceof Error ? e.message : 'Unknown error while saving data to the cloud.'
+        e instanceof Error ? e.message : 'Unknown error while saving data locally.'
       );
     } finally {
-      setSavingCloud(false);
+      setSavingLocal(false);
     }
   }
 
@@ -317,25 +346,15 @@ export default function CvDataScreen() {
         <View className="mb-2">
           <PrimaryButton
             title={
-              loadingCloud
-                ? 'Loading…'
-                : savingCloud
-                  ? 'Saving…'
-                  : auth.currentUser
-                    ? 'Save CV'
-                    : 'Save CV (sign in required)'
+              loadingLocal ? 'Loading…' : savingLocal ? 'Saving…' : 'Save CV'
             }
-            onPress={saveCvToCloud}
+            onPress={saveCvToDevice}
           />
-          {loadingCloud ? (
-            <Text className="mt-2 text-sm text-gray-600">Loading your saved CV from the cloud…</Text>
-          ) : !auth.currentUser ? (
-            <Text className="mt-2 text-sm text-gray-600">
-              You’re not signed in, so CV data stays on this screen only.
-            </Text>
+          {loadingLocal ? (
+            <Text className="mt-2 text-sm text-gray-600">Loading your saved CV from this device…</Text>
           ) : (
             <Text className="mt-2 text-sm text-gray-600">
-              Saved CV is linked to your Firebase account.
+              Auto-saves locally while you edit. Account: {auth.currentUser?.email ?? 'Guest'}
             </Text>
           )}
         </View>
